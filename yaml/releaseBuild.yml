@@ -1,0 +1,171 @@
+# release build
+name: JsonAdapter-Release-$(Date:yyyyMMdd)$(Rev:.rr)
+trigger: none
+
+pr: none
+
+variables:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  POWERSHELL_TELEMETRY_OPTOUT: 1
+
+resources:
+  repositories:
+  - repository: ComplianceRepo
+    type: github
+    endpoint: ComplianceGHRepo
+    name: PowerShell/compliance
+    ref: master
+
+stages:
+- stage: BuildAndSign
+  displayName: Build and Sign
+  pool:
+    name: PowerShell1ES
+    demands:
+    - ImageOverride -equals PSMMS2019-Preview-Secure
+  jobs:
+  - job: 'BuildAndSign'
+    displayName: Build and Sign
+    variables:
+    - group: ESRP
+    steps:
+    - checkout: self
+
+    - task: UseDotNet@2
+      displayName: 'Use .NET Core sdk'
+      inputs:
+        packageType: sdk
+        includePreviewVersions: true
+        version: 8.x
+
+    - pwsh: |
+        Get-ChildItem -Path env:
+      displayName: Capture environment
+      condition: succeededOrFailed()
+
+    - pwsh: |
+        Set-Location "$(Build.SourcesDirectory)/JsonAdapter"
+        Get-ChildItem -Recurse -File -Name | Write-Verbose -Verbose
+        ./build.ps1 -Release
+        Get-ChildItem -Recurse -File -Name | Write-Verbose -Verbose
+
+      displayName: Execute Build
+
+    - pwsh: |
+        $signSrcPath = "$(Build.SourcesDirectory)/JsonAdapter/out"
+        # Set signing src path variable 
+        $vstsCommandString = "vso[task.setvariable variable=signSrcPath]${signSrcPath}"
+        Write-Host ("sending " + $vstsCommandString)
+        Write-Host "##$vstsCommandString"
+
+        $signOutPath = "$(Build.SourcesDirectory)/JsonAdapter/signed"
+        $null = New-Item -ItemType Directory -Path $signOutPath
+        # Set signing out path variable
+        $vstsCommandString = "vso[task.setvariable variable=signOutPath]${signOutPath}"
+        Write-Host "sending " + $vstsCommandString
+        Write-Host "##$vstsCommandString"
+
+        # Set path variable for guardian codesign validation
+        $vstsCommandString = "vso[task.setvariable variable=GDN_CODESIGN_TARGETDIRECTORY]${signOutPath}"
+        Write-Host "sending " + $vstsCommandString
+        Write-Host "##$vstsCommandString"
+
+        $packageVersion = (Import-PowerShellDataFile $(Build.SourcesDirectory)/JsonAdapter/out/Microsoft.PowerShell.JsonAdapter/Microsoft.PowerShell.JsonAdapter.psd1).ModuleVersion
+        $vstsCommandString = "vso[task.setvariable variable=PackageVersion]$packageVersion"
+        Write-Host ("sending " + $vstsCommandString)
+        Write-Host "##$vstsCommandString"
+
+      displayName: Setup variables for signing
+
+    - publish: "$(Build.SourcesDirectory)/JsonAdapter/staging/"
+      artifact: staging
+
+      displayName: Publish unsigned module files
+
+    - checkout: ComplianceRepo
+
+    - template: EsrpSign.yml@ComplianceRepo
+      parameters:
+        # the folder which contains the binaries to sign
+        buildOutputPath: $(signSrcPath)
+        # the location to put the signed output
+        signOutputPath: $(signOutPath)
+        # the certificate ID to use
+        certificateId: "CP-230012"
+        # The file pattern to use
+        # If not using minimatch: comma separated, with * supported
+        # If using minimatch: newline separated, with !, **, and * supported.
+        # See link in the useMinimatch comments.
+        pattern: '*.dll,*.psd1,*.psm1,*.ps1xml'
+        # decides if the task should use minimatch for the pattern matching.
+        # https://github.com/isaacs/minimatch#features
+        useMinimatch: false
+
+    - template: Sbom.yml@ComplianceRepo
+      parameters:
+        BuildDropPath: $(Build.SourcesDirectory)/JsonAdapter/signed/Microsoft.PowerShell.JsonAdapter
+        Build_Repository_Uri: 'https://github.com/powershell/textutility'
+        PackageName: 'Microsoft.PowerShell.JsonAdapter'
+        PackageVersion: $(PackageVersion)
+
+      displayName: Create Sbom
+
+    - pwsh: |
+        Set-Location $(Build.SourcesDirectory)/JsonAdapter
+        # packaging this module requires a 7.4 preview
+        pwsh-preview -c ./build.ps1 -package -NoBuild -UseSignedFiles
+
+      displayName: Package Module
+
+    - pwsh: |
+        New-Item -Path $(Build.SourcesDirectory)/JsonAdapter/SignedZip -ItemType Directory -ErrorAction Ignore
+        Compress-Archive -Path $(Build.SourcesDirectory)/JsonAdapter/signed/Microsoft.PowerShell.JsonAdapter -DestinationPath $(Build.SourcesDirectory)/JsonAdapter/SignedZip/Microsoft.PowerShell.JsonAdapter.zip -Force
+      displayName: 'Compress archive'
+      condition: succeededOrFailed()
+
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetpath: $(Build.SourcesDirectory)/JsonAdapter/signed/Microsoft.PowerShell.JsonAdapter
+        artifactName: Signed
+
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetpath: $(Build.SourcesDirectory)/JsonAdapter/SignedZip
+        artifactName: SignedZip
+
+- stage: compliance
+  displayName: Compliance
+  dependsOn: BuildAndSign
+  jobs:
+  - job: Compliance_Job
+    pool:
+      name: PowerShell1ES
+      demands:
+      - ImageOverride -equals PSMMS2019-Secure
+    steps:
+    - checkout: self
+    - checkout: ComplianceRepo
+    - download: current
+      artifact: Signed
+
+    - pwsh: |
+        Get-ChildItem -Path "$(Pipeline.Workspace)\Signed" -Recurse
+      displayName: Capture downloaded artifacts
+
+    - template: assembly-module-compliance.yml@ComplianceRepo
+      parameters:
+        # binskim
+        AnalyzeTarget: '$(Pipeline.Workspace)\*.dll'
+        AnalyzeSymPath: 'SRV*'
+        # component-governance
+        sourceScanPath: '$(Build.SourcesDirectory)'
+        # credscan
+        suppressionsFile: ''
+        # TermCheck
+        optionsRulesDBPath: ''
+        optionsFTPath: ''
+        # tsa-upload
+        codeBaseName: 'textutility_202305'
+        # selections
+        APIScan: false # set to false when not using Windows APIs.
