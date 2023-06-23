@@ -83,14 +83,6 @@ stages:
 
       displayName: Publish build module files
 
-    - powershell: |
-        Set-Location $(Build.SourcesDirectory)/JsonAdapterPredictor
-        Invoke-WebRequest -Uri https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
-        .\dotnet-install.ps1 -Channel 2.1 -InstallDir "$(Agent.ToolsDirectory)/dotnet"
-        dotnet --list-sdks
-
-      displayName: 'Install dotnet 2.1'
-
     - checkout: ComplianceRepo
 
     - template: EsrpSign.yml@ComplianceRepo
