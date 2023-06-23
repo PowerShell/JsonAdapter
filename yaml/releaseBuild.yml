@@ -78,10 +78,10 @@ stages:
 
       displayName: Setup variables for signing
 
-    - publish: "$(Build.SourcesDirectory)/JsonAdapterPredictor/staging/"
-      artifact: staging
+    - publish: "$(Build.SourcesDirectory)/JsonAdapterPredictor/out/"
+      artifact: out
 
-      displayName: Publish unsigned module files
+      displayName: Publish build module files
 
     - checkout: ComplianceRepo
 
@@ -121,6 +121,11 @@ stages:
         Compress-Archive -Path $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.JsonAdapter -DestinationPath $(Build.SourcesDirectory)/JsonAdapterPredictor/SignedZip/Microsoft.PowerShell.JsonAdapter.zip -Force
       displayName: 'Compress archive'
       condition: succeededOrFailed()
+
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetpath: $(Build.SourcesDirectory)/JsonAdapterPredictor/staging
+        artifactName: Staging
 
     - task: PublishPipelineArtifact@1
       inputs:
