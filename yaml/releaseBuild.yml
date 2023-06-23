@@ -71,7 +71,7 @@ stages:
         Write-Host "sending " + $vstsCommandString
         Write-Host "##$vstsCommandString"
 
-        $packageVersion = (Import-PowerShellDataFile $(Build.SourcesDirectory)/JsonAdapterPredictor/out/Microsoft.PowerShell.JsonAdapter/Microsoft.PowerShell.JsonAdapter.psd1).ModuleVersion
+        $packageVersion = (Import-PowerShellDataFile $(Build.SourcesDirectory)/JsonAdapterPredictor/src/Microsoft.PowerShell.JsonAdapter.psd1).ModuleVersion
         $vstsCommandString = "vso[task.setvariable variable=PackageVersion]$packageVersion"
         Write-Host ("sending " + $vstsCommandString)
         Write-Host "##$vstsCommandString"
