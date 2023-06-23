@@ -8,12 +8,14 @@ param (
     [switch]$Clean # remove out,staging,src/bin,src/obj
 )
 
-# Be sure we're running on 7.4 - otherwise we cannot publish
-# running on a preview is sufficient
-if (($PSVersionTable.PSVersion -as [Version]) -lt "7.4") {
-	$ex = [invalidoperationexception]::new("PowerShell version must be at least 7.4 to run this script.")
-	$er = [System.Management.Automation.ErrorRecord]::new($ex, "invalidpsversion", "InvalidOperation", $PSVersionTable.PSVersion)	
-    $PSCmdlet.ThrowTerminatingError($er)
+function Test-PSVersion {
+    # Be sure we're running on 7.4 - otherwise we cannot publish
+    # running on a preview is sufficient
+    if (($PSVersionTable.PSVersion -as [Version]) -lt "7.4") {
+        $ex = [invalidoperationexception]::new("PowerShell version must be at least 7.4 to run this script.")
+        $er = [System.Management.Automation.ErrorRecord]::new($ex, "invalidpsversion", "InvalidOperation", $PSVersionTable.PSVersion)	
+        $PSCmdlet.ThrowTerminatingError($er)
+    }
 }
 
 # this takes the files for the module and publishes them to a created, local repository
@@ -115,7 +117,8 @@ if (!$NoBuild) {
 
 # create a module nupkg
 if ($package) {
-	Write-Progress "Starting Packaging"
+    Test-PSVersion
+    Write-Progress "Starting Packaging"
     try {
         Push-Location ${PSScriptRoot}
         if (!(Test-Path ${stagingDirectory})) {
@@ -141,9 +144,15 @@ if ($package) {
     finally {
         Pop-Location
     }
-
 }
 
 if ($Test) {
-    "Not implemented"
+    $sb = [scriptblock]::Create("
+        Set-Location $PSScriptRoot
+        import-module $PSScriptRoot/out/Microsoft.PowerShell.JsonAdapter
+        Set-Location $PSScriptRoot/test
+        import-module -Name Pester -Max 4.99
+        Invoke-Pester
+    ")
+    pwsh-preview -nopro -c $sb
 }
