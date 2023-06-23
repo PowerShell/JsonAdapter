@@ -109,8 +109,6 @@ stages:
         PackageName: 'Microsoft.PowerShell.JsonAdapter'
         PackageVersion: $(PackageVersion)
 
-      displayName: Create Sbom
-
     - pwsh: |
         Set-Location $(Build.SourcesDirectory)/JsonAdapter
         # packaging this module requires a 7.4 preview
