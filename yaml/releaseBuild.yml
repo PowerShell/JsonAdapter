@@ -45,7 +45,7 @@ stages:
       condition: succeededOrFailed()
 
     - pwsh: |
-        Set-Location "$(Build.SourcesDirectory)/JsonAdapter"
+        Set-Location "$(Build.SourcesDirectory)/JsonAdapterPredictor"
         Get-ChildItem -Recurse -File -Name | Write-Verbose -Verbose
         ./build.ps1 -Release
         Get-ChildItem -Recurse -File -Name | Write-Verbose -Verbose
@@ -53,13 +53,13 @@ stages:
       displayName: Execute Build
 
     - pwsh: |
-        $signSrcPath = "$(Build.SourcesDirectory)/JsonAdapter/out"
+        $signSrcPath = "$(Build.SourcesDirectory)/JsonAdapterPredictor/out"
         # Set signing src path variable 
         $vstsCommandString = "vso[task.setvariable variable=signSrcPath]${signSrcPath}"
         Write-Host ("sending " + $vstsCommandString)
         Write-Host "##$vstsCommandString"
 
-        $signOutPath = "$(Build.SourcesDirectory)/JsonAdapter/signed"
+        $signOutPath = "$(Build.SourcesDirectory)/JsonAdapterPredictor/signed"
         $null = New-Item -ItemType Directory -Path $signOutPath
         # Set signing out path variable
         $vstsCommandString = "vso[task.setvariable variable=signOutPath]${signOutPath}"
@@ -71,14 +71,14 @@ stages:
         Write-Host "sending " + $vstsCommandString
         Write-Host "##$vstsCommandString"
 
-        $packageVersion = (Import-PowerShellDataFile $(Build.SourcesDirectory)/JsonAdapter/out/Microsoft.PowerShell.JsonAdapter/Microsoft.PowerShell.JsonAdapter.psd1).ModuleVersion
+        $packageVersion = (Import-PowerShellDataFile $(Build.SourcesDirectory)/JsonAdapterPredictor/out/Microsoft.PowerShell.JsonAdapter/Microsoft.PowerShell.JsonAdapter.psd1).ModuleVersion
         $vstsCommandString = "vso[task.setvariable variable=PackageVersion]$packageVersion"
         Write-Host ("sending " + $vstsCommandString)
         Write-Host "##$vstsCommandString"
 
       displayName: Setup variables for signing
 
-    - publish: "$(Build.SourcesDirectory)/JsonAdapter/staging/"
+    - publish: "$(Build.SourcesDirectory)/JsonAdapterPredictor/staging/"
       artifact: staging
 
       displayName: Publish unsigned module files
@@ -104,32 +104,32 @@ stages:
 
     - template: Sbom.yml@ComplianceRepo
       parameters:
-        BuildDropPath: $(Build.SourcesDirectory)/JsonAdapter/signed/Microsoft.PowerShell.JsonAdapter
+        BuildDropPath: $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.JsonAdapter
         Build_Repository_Uri: 'https://github.com/powershell/textutility'
-        PackageName: 'Microsoft.PowerShell.JsonAdapter'
+        PackageName: 'Microsoft.PowerShell.JsonAdapterPredictor'
         PackageVersion: $(PackageVersion)
 
     - pwsh: |
-        Set-Location $(Build.SourcesDirectory)/JsonAdapter
+        Set-Location $(Build.SourcesDirectory)/JsonAdapterPredictor
         # packaging this module requires a 7.4 preview
         pwsh-preview -c ./build.ps1 -package -NoBuild -UseSignedFiles
 
       displayName: Package Module
 
     - pwsh: |
-        New-Item -Path $(Build.SourcesDirectory)/JsonAdapter/SignedZip -ItemType Directory -ErrorAction Ignore
-        Compress-Archive -Path $(Build.SourcesDirectory)/JsonAdapter/signed/Microsoft.PowerShell.JsonAdapter -DestinationPath $(Build.SourcesDirectory)/JsonAdapter/SignedZip/Microsoft.PowerShell.JsonAdapter.zip -Force
+        New-Item -Path $(Build.SourcesDirectory)/JsonAdapterPredictor/SignedZip -ItemType Directory -ErrorAction Ignore
+        Compress-Archive -Path $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.JsonAdapter -DestinationPath $(Build.SourcesDirectory)/JsonAdapterPredictor/SignedZip/Microsoft.PowerShell.JsonAdapter.zip -Force
       displayName: 'Compress archive'
       condition: succeededOrFailed()
 
     - task: PublishPipelineArtifact@1
       inputs:
-        targetpath: $(Build.SourcesDirectory)/JsonAdapter/signed/Microsoft.PowerShell.JsonAdapter
+        targetpath: $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.JsonAdapter
         artifactName: Signed
 
     - task: PublishPipelineArtifact@1
       inputs:
-        targetpath: $(Build.SourcesDirectory)/JsonAdapter/SignedZip
+        targetpath: $(Build.SourcesDirectory)/JsonAdapterPredictor/SignedZip
         artifactName: SignedZip
 
 - stage: compliance
