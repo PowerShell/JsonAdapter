@@ -118,6 +118,7 @@ stages:
 
     - pwsh: |
         Set-Location $(Build.SourcesDirectory)/JsonAdapterPredictor
+        Get-ChildItem -Rec -File | Out-String -Str | Write-Verbose -verbose
         # packaging this module requires a 7.4 preview
         pwsh-preview -c ./build.ps1 -package -NoBuild -UseSignedFiles
 
