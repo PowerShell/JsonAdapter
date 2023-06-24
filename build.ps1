@@ -139,7 +139,7 @@ if ($package) {
             }
         }
 		Write-Progress "Exporting Package"
-        Export-Module -packageRoot $stagingDirectory -exportRoot $PSScriptRoot
+        Export-Module -packageRoot "${signDirectory}/${moduleName}/${moduleVersion}" -exportRoot $PSScriptRoot
     }
     finally {
         Pop-Location

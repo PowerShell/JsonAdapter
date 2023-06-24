@@ -111,14 +111,14 @@ stages:
 
     - template: Sbom.yml@ComplianceRepo
       parameters:
-        BuildDropPath: $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.JsonAdapter
+        BuildDropPath: $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.JsonAdapter/$(PackageVersion)
         Build_Repository_Uri: 'https://github.com/powershell/textutility'
         PackageName: 'Microsoft.PowerShell.JsonAdapterPredictor'
         PackageVersion: $(PackageVersion)
 
     - pwsh: |
         Set-Location $(Build.SourcesDirectory)/JsonAdapterPredictor
-        Get-ChildItem -Rec -File | Out-String -Str | Write-Verbose -verbose
+        Get-ChildItem -Rec -File | Format-Table LastWriteTime,FullName | Out-String -Str | Write-Verbose -verbose
         # packaging this module requires a 7.4 preview
         pwsh-preview -c ./build.ps1 -package -NoBuild -UseSignedFiles
 
