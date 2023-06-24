@@ -37,7 +37,7 @@ stages:
       inputs:
         packageType: sdk
         includePreviewVersions: true
-        version: 2.1
+        version: 2.1.x
 
     - task: UseDotNet@2
       displayName: 'Use .NET Core sdk 8.x'
