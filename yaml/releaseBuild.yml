@@ -33,7 +33,14 @@ stages:
     - checkout: self
 
     - task: UseDotNet@2
-      displayName: 'Use .NET Core sdk'
+      displayName: 'Use .NET Core sdk 2.1'
+      inputs:
+        packageType: sdk
+        includePreviewVersions: true
+        version: 2.1
+
+    - task: UseDotNet@2
+      displayName: 'Use .NET Core sdk 8.x'
       inputs:
         packageType: sdk
         includePreviewVersions: true
