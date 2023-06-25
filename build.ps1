@@ -118,7 +118,7 @@ if (!$NoBuild) {
 # create a module nupkg
 if ($package) {
     Test-PSVersion
-    Write-Progress "Starting Packaging"
+    Write-Progress -Verbose "Starting Packaging"
     try {
         Push-Location ${PSScriptRoot}
         if (!(Test-Path ${stagingDirectory})) {
@@ -132,14 +132,14 @@ if ($package) {
             $src = "${fmt}" -f $file.File
 			Write-Progress "Copying $src"
             if (Test-Path $src) {
-                copy-item $src $stagingDirectory
+                copy-item $src ${stagingDirectory}
             }
             else {
                 Write-Error "file not found: ${src}"
             }
         }
 		Write-Progress "Exporting Package"
-        Export-Module -packageRoot $stagingDirectory -exportRoot $PSScriptRoot
+        Export-Module -packageRoot "${signDirectory}/${moduleName}/${moduleVersion}" -exportRoot $PSScriptRoot
     }
     finally {
         Pop-Location
