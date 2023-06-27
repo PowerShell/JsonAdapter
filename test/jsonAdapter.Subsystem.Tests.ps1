@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
 Describe "Subsystem tests" {
     BeforeAll {
         $subsystemResults = Get-PSSubsystem

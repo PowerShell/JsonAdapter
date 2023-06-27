@@ -1,3 +1,7 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# Install preview on ubuntu
 # Update the list of packages
 write-progress "apt update" -perc 10
 apt -qq update

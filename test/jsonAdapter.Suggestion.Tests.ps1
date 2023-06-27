@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
 Describe "Suggestion Tests" {
     BeforeAll {
         # this uses reflection to get at the generator
@@ -35,6 +38,13 @@ Describe "Suggestion Tests" {
     It "Should provide an arp-json suggestion for '$ast3'" {
         $suggestions = $generator.GetSuggestions($Ast3)
         $suggestions | Should -Contain "arp | arp-json"
+    }
+
+    It "Should preserve the parameters of '$Ast4'" {
+        $suggestions = $generator.GetSuggestions($Ast4)
+        $matches = $suggestions | Where-Object { $_ -match "abc" }
+        $matches.Count | Should -Be 2
+        
     }
 
 }
