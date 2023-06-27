@@ -1,3 +1,7 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+using System;
 using System.Diagnostics;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -32,14 +36,10 @@ namespace JsonAdapterProvider
     {
         private readonly Guid _guid;
         private string? _suggestion;
-        private Runspace _rs;
-        private CommandInvocationIntrinsics _cIntrinsics;
+
+        private SuggestionGenerator _suggestionGenerator;
+
         Dictionary<string, string>? ISubsystem.FunctionsToDefine => null;
-
-        private ConcurrentDictionary<string, string> _commandCache { get; set; }
-
-        private CommandTypes allowedAdapterTypes = CommandTypes.Application | CommandTypes.Function | CommandTypes.Filter |
-            CommandTypes.Alias | CommandTypes.ExternalScript | CommandTypes.Script;
 
         /// <summary>
         /// add counter for cancellation token
@@ -50,51 +50,17 @@ namespace JsonAdapterProvider
         /// add counter for cancellation token
         /// </summary>
         public static int SuggestionCancelCount { get; set; }
+        public static int SuggestionRequestedCount { get; set; }
 
         /// <summary>
         /// Trigger for calling the predictor
         /// </summary>
         public FeedbackTrigger Trigger => FeedbackTrigger.All;
 
-        // supported commands for jc
-        private readonly HashSet<string> _jcCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            "arp",
-            "cksum",
-            "crontab",
-            "date",
-            "df",
-            "dig",
-            "dir",
-            "du",
-            "file",
-            "finger",
-            "free",
-            "hash",
-            "id",
-            "ifconfig",
-            "iostat",
-            "jobs",
-            "lsof",
-            "mount",
-            "mpstat",
-            "netstat",
-            "route",
-            "stat",
-            "sysctl",
-            "traceroute",
-            "uname",
-            "uptime",
-            "w",
-            "wc",
-            "who",
-            "zipinfo"
-            };
-
-        private int accepted = 0;
-        private int displayed = 0;
-        private int executed = 0;
-
-        private bool hasJcCommand = false;
+        private int suggestionAccepted = 0;
+        private int suggestionDisplayed = 0;
+        private int commandLineAccepted = 0;
+        private int commandLineExecuted = 0;
 
         public static JsonAdapterFeedbackPredictor Singleton { get; } = new JsonAdapterFeedbackPredictor(Init.id);
 
@@ -106,19 +72,12 @@ namespace JsonAdapterProvider
                 _guid = new Guid(guid);
             }
 
-            _rs = RunspaceFactory.CreateRunspace(InitialSessionState.CreateDefault());
-            _rs.Open();
-            _cIntrinsics = _rs.SessionStateProxy.InvokeCommand;
-            if(_cIntrinsics.GetCommand("jc", CommandTypes.Application) is not null)
-            {
-                hasJcCommand = true;
-            }
-            _commandCache = new ConcurrentDictionary<string, string>();
+            _suggestionGenerator = new SuggestionGenerator();
         }
 
         public void Dispose()
         {
-            _rs.Dispose();
+            _suggestionGenerator.Dispose();
         }
 
         public Guid Id => _guid;
@@ -132,117 +91,111 @@ namespace JsonAdapterProvider
         /// </summary>
         public FeedbackItem? GetFeedback(FeedbackContext context, CancellationToken token)
         {
-            return GetFeedback(context.CommandLine, token);
+            CommandAst? cAst = context.CommandLineAst.Find((ast) => ast is CommandAst, true) as CommandAst;
+            if (cAst is not null)
+            {
+                /*
+                // we need pipelines here because we need to check the potential next command in the pipeline
+                // because if one of them is what we suggest, we don't want to suggest anything
+                List<PipelineAst>? suggestedPipelines = _suggestionGenerator.GetSuggestedPipelines(cAst);
+                if (suggestedPipelines is null || suggestedPipelines.Count == 0)
+                {
+                    return null;
+                }
+
+                // Get the second command if it exists and compare it to the second command of the suggested pipelines
+                PipelineAst? parent = cAst.Parent as PipelineAst;
+                if (parent is not null && parent.PipelineElements.Count > 1)
+                {
+                    string? secondCommand = null;
+                    secondCommand = (parent.PipelineElements[1] as CommandAst)?.GetCommandName();
+                    if (secondCommand is not null)
+                    {
+                        foreach (PipelineAst suggestion in suggestedPipelines)
+                        {
+                            string? suggestionSecondCommand = (suggestion.PipelineElements[1] as CommandAst)?.GetCommandName();
+                            if (suggestionSecondCommand is not null && suggestionSecondCommand.Equals(secondCommand))
+                            {
+                                return null;
+                            }
+                        }
+                    }
+                }
+
+                List<string> suggestions = new List<string>(suggestedPipelines.Count);
+                foreach(PipelineAst suggestion in suggestedPipelines)
+                {
+                    suggestions.Add(suggestion.Extent.Text);
+                }
+                */
+
+                List<string>? filteredSuggestions = GetFilteredSuggestions(cAst);
+                if (filteredSuggestions is null)
+                {
+                    return null;
+                }
+                
+                return new FeedbackItem("Json adapter found additional ways to run.", filteredSuggestions);
+            }
+
+            return null;
         }
 
-        /// <summary>
-        /// Gets feedback based on the given command line and error record.
-        /// </summary>
-        public FeedbackItem? GetFeedback(string commandLine, ErrorRecord er, CancellationToken token)
+        public List<string>? GetFilteredSuggestions(CommandAst cAst)
         {
-            return GetFeedback(commandLine, token);
+            // we need pipelines here because we need to check the potential next command in the pipeline
+            // because if one of them is what we suggest, we don't want to suggest anything
+            List<PipelineAst>? suggestedPipelines = _suggestionGenerator.GetSuggestedPipelines(cAst);
+            if (suggestedPipelines is null || suggestedPipelines.Count == 0)
+            {
+                return null;
+            }
+
+            // Get the second command if it exists and compare it to the second command of the suggested pipelines
+            PipelineAst? parent = cAst.Parent as PipelineAst;
+            if (parent is not null && parent.PipelineElements.Count > 1)
+            {
+                string? secondCommand = null;
+                secondCommand = (parent.PipelineElements[1] as CommandAst)?.GetCommandName();
+                if (secondCommand is not null)
+                {
+                    foreach (PipelineAst suggestion in suggestedPipelines)
+                    {
+                        string? suggestionSecondCommand = (suggestion.PipelineElements[1] as CommandAst)?.GetCommandName();
+                        if (suggestionSecondCommand is not null && suggestionSecondCommand.Equals(secondCommand))
+                        {
+                            return null;
+                        }
+                    }
+                }
+            }
+
+            List<string> suggestions = new List<string>(suggestedPipelines.Count);
+            foreach(PipelineAst suggestion in suggestedPipelines)
+            {
+                suggestions.Add(suggestion.Extent.Text);
+            }
+            return suggestions;
+
         }
 
         private List<PredictiveSuggestion>? GetSuggestions(CommandAst commandAst)
         {
-            List<PredictiveSuggestion> suggestions = new List<PredictiveSuggestion>(1);
+            List<PredictiveSuggestion> suggestionList = new List<PredictiveSuggestion>(1);
             string commandName = commandAst.GetCommandName();
 
-            var command = _cIntrinsics.GetCommand(commandName, CommandTypes.Application|CommandTypes.ExternalScript);
-            if (command is null)
-            {
-                return null;
-            }
-            
-            // hunt for <name>-json style adapter
-            var adapterCmd = string.Format("{0}-json", Path.GetFileNameWithoutExtension(commandName));
-            var adapter = _cIntrinsics.GetCommand(adapterCmd, allowedAdapterTypes);
-            if (adapter is not null)
-            {
-                _commandCache.TryAdd("json:"+commandName, adapterCmd);
-                suggestions.Add(new PredictiveSuggestion(string.Format("{0} | {1}", commandAst.Extent.Text, adapterCmd)));
-            }
-
-            if (hasJcCommand && _jcCommands.Contains(commandName))
-            {
-                var adapterPipeline = string.Format("{0} | ConvertFrom-Json", GetJcAdapter(commandName));
-                _commandCache.TryAdd("jc:" + commandName, adapterPipeline);
-                suggestions.Add(new PredictiveSuggestion(string.Format("{0} | {1}", commandAst.Extent.Text, adapterPipeline)));
-            }
-
-            return suggestions;
-        }
-
-        /// <summary>
-        /// Gets feedback based on the given command line and error record.
-        /// </summary>
-        public FeedbackItem? GetFeedback(string commandLine, CancellationToken token)
-        {
-            List<string> pipelineElements = new List<string>();
-            Ast myAst = Parser.ParseInput(commandLine, out _, out _);
-            bool adapterFound = false;
-
-            foreach(var cAst in myAst.FindAll((ast) => ast is CommandAst, true))
-            {
-                var commandAst = (CommandAst)cAst;
-                var commandName = commandAst.GetCommandName();
-                if (commandName is null)
-                {
-                    continue;
-                }
-
-                // search only for Native applications and Native scripts
-                var command = _cIntrinsics.GetCommand(commandName, CommandTypes.Application|CommandTypes.ExternalScript);
-                if (command is null)
-                {
-                    continue;
-                }
-
-                // Check if the command has a JSON adapter
-                // need to remove the .exe extension before searching for the adapter
-                var adapterCmd = string.Format("{0}-json", Path.GetFileNameWithoutExtension(commandName));
-                var adapter = _cIntrinsics.GetCommand(adapterCmd, allowedAdapterTypes);
-                // We haven't found a "-json" adapter for this command
-                if (adapter is null)
-                {
-                    pipelineElements.Add(cAst.Extent.Text);
-                    // look for a jc adapter
-                    string? JcCommand = GetJcAdapter(commandName);
-                    if (JcCommand is not null)
-                    {
-                        pipelineElements.Add(JcCommand);
-                        pipelineElements.Add("ConvertFrom-Json");
-                        adapterFound = true;
-                    }
-                    continue;
-                }
-
-                // construct the pipeline to display to the user.
-                pipelineElements.Add(string.Format("{0} | {1}", cAst.Extent.Text, adapterCmd));
-                adapterFound = true;
-            }
-
-            if (!adapterFound)
+            List<PipelineAst>? suggestions = _suggestionGenerator.GetSuggestedPipelines(commandAst);
+            if (suggestions is null)
             {
                 return null;
             }
 
-            // Rewrite the command line to use the adapter
-            var pipeline = string.Join(" | ", pipelineElements);
-            return new FeedbackItem(
-                "A JSON adapter was found for this command.",
-                new List<string> { pipeline }
-                );
-
-        }
-
-        public string? GetJcAdapter(string command)
-        {
-            if (_jcCommands.Contains(command))
+            foreach(PipelineAst suggestion in suggestions)
             {
-                return string.Format("jc --{0}", command);
+                suggestionList.Add(new PredictiveSuggestion(suggestion.Extent.Text));
             }
-            return null;
+
+            return suggestionList;
         }
 
         public bool CanAcceptFeedback(PredictionClient client, PredictorFeedbackKind feedback)
@@ -256,96 +209,48 @@ namespace JsonAdapterProvider
 
         public SuggestionPackage GetSuggestion(PredictionClient client, PredictionContext context, CancellationToken cancellationToken)
         {
-            // return new SuggestionPackage(new List<PredictiveSuggestion>(){new PredictiveSuggestion("lol - too slow")});
-            
-            List<PredictiveSuggestion>? result = null;
-
-            result ??= new List<PredictiveSuggestion>(1);
-
+            SuggestionRequestedCount++;
             CommandAst? commandAst = context.InputAst.Find((ast) => ast is CommandAst, true) as CommandAst;
-
             if(commandAst is null)
             {
                 return default;
             }
 
-            string commandName; // result.Add(new PredictiveSuggestion(commandAst.GetCommandName()));
-            if ((commandName = commandAst.GetCommandName()) is null)
+            List<PipelineAst>? suggestions = _suggestionGenerator.GetSuggestedPipelines(commandAst);
+            if (suggestions is null)
             {
                 return default;
             }
 
-            bool cacheHit = false;
-            if (_commandCache.TryGetValue("json:"+commandName, out string? jsonAdapter))
+            List<PredictiveSuggestion> result = new List<PredictiveSuggestion>(suggestions.Count);
+            foreach(PipelineAst suggestion in suggestions)
             {
-                result.Add(new PredictiveSuggestion(string.Format("{0} | {1}", commandAst.Extent.Text, jsonAdapter)));
-                cacheHit = true;
+                result.Add(new PredictiveSuggestion(suggestion.Extent.Text));
             }
 
-            if (_commandCache.TryGetValue("jc:"+commandName, out string? jcAdapter))
+            if (cancellationToken.IsCancellationRequested)
             {
-                result.Add(new PredictiveSuggestion(string.Format("{0} | {1}", commandAst.Extent.Text, jcAdapter)));
-                cacheHit = true;
+                SuggestionCancelCount++;
             }
 
-            if (cacheHit)
-            {
-                return new SuggestionPackage(result);
-            }
-            
-            // This could time out, but we will try to get the suggestions anyway because we need to cache them.
-            result = GetSuggestions(commandAst);
-            if (result is not null)
-            {
-                return new SuggestionPackage(result);
-            }
-            /*
-            if (result is null || result.Count == 0)
-            {
-                return default;
-            }
-
-            if (result is not null)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    SuggestionCancelCount++;
-                }
-
-                return new SuggestionPackage(result);
-            }
-
-            */
-            return default;
+            return new SuggestionPackage(result);
         }
 
         public void OnCommandLineAccepted(PredictionClient client, IReadOnlyList<string> history)
         {
-            _suggestion = null;
+            commandLineAccepted++;
         }
 
         public void OnSuggestionDisplayed(PredictionClient client, uint session, int countOrIndex) {
-            displayed++;
+            suggestionDisplayed++;
         }
 
         public void OnSuggestionAccepted(PredictionClient client, uint session, string acceptedSuggestion) {
-            accepted++;
+            suggestionAccepted++;
          }
 
         public void OnCommandLineExecuted(PredictionClient client, string commandLine, bool success) {
-            executed++;
-        }
-
-        public string TestPrediction(string commandLine)
-        {
-            CancellationTokenSource source = new CancellationTokenSource();
-            CancellationToken token = source.Token;
-            FeedbackItem? fi = GetFeedback(commandLine, token);
-            if (fi is null || fi.RecommendedActions is null || fi.RecommendedActions.Count < 1)
-            {
-                return string.Empty;
-            }
-            return fi.RecommendedActions[0];
+            commandLineExecuted++;
         }
 
     }

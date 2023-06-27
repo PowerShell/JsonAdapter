@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
 [CmdletBinding()]
 param (
     [switch]$NoBuild, # by default we build
@@ -105,7 +108,7 @@ if (!$NoBuild) {
         }
         $output = dotnet publish --configuration ${config} -o ${outDirectory}
         if ($LASTEXITCODE -ne 0) {
-            write-error $output
+            write-error ($output -join "`n")
             return
         }
         copy-item ${moduleManifest} ${outDirectory}
