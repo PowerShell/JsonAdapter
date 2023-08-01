@@ -66,7 +66,7 @@ function Export-Module
     }
 }
 
-$moduleName = "Microsoft.PowerShell.JsonAdapter"
+$moduleName = "Microsoft.PowerShell.PSAdapter"
 $moduleManifest = "${ModuleName}.psd1"
 try {
     $moduleManifestPath = "${PSScriptRoot}/src/${ModuleManifest}"
@@ -152,7 +152,7 @@ if ($package) {
 if ($Test) {
     $sb = [scriptblock]::Create("
         Set-Location $PSScriptRoot
-        import-module $PSScriptRoot/out/Microsoft.PowerShell.JsonAdapter
+        import-module $PSScriptRoot/out/Microsoft.PowerShell.PSAdapter
         Set-Location $PSScriptRoot/test
         import-module -Name Pester -Max 4.99
         Invoke-Pester

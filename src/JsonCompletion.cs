@@ -9,7 +9,7 @@ using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Threading.Tasks;
 
-namespace JsonAdapterProvider
+namespace PSAdapterProvider
 {
     public class SuggestionGenerator
     {
@@ -70,7 +70,7 @@ namespace JsonAdapterProvider
 
         private void TryAddJsonAdapter(string commandName)
         {
-            var jsonAdapter = commandName + "-json";
+            var jsonAdapter = commandName + "-adapter";
             var cmdInfo = _cIntrinsics.GetCommand(jsonAdapter, allowedAdapterTypes);
             if (null != cmdInfo)
             {
@@ -121,8 +121,8 @@ namespace JsonAdapterProvider
                 // TryAddJcAdapter(commandWithoutExtension);
             }
 
-            // we need to check if the command has an adapter with the shape <name>-json.*
-            var jsonAdapter = commandWithoutExtension + "-json";
+            // we need to check if the command has an adapter with the shape <name>-adapter.*
+            var jsonAdapter = commandWithoutExtension + "-adapter";
             if (_commandAdapterCache.TryGetValue("json:" + commandName, out adapter))
             {
                 suggestions.Add(cAst.Extent.Text + " | " + adapter);
