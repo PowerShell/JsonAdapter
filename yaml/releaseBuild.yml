@@ -1,5 +1,5 @@
 # release build
-name: JsonAdapter-Release-$(Date:yyyyMMdd)$(Rev:.rr)
+name: PSAdapter-Release-$(Date:yyyyMMdd)$(Rev:.rr)
 trigger: none
 
 pr: none
@@ -78,7 +78,7 @@ stages:
         Write-Host "sending " + $vstsCommandString
         Write-Host "##$vstsCommandString"
 
-        $packageVersion = (Import-PowerShellDataFile $(Build.SourcesDirectory)/JsonAdapterPredictor/src/Microsoft.PowerShell.JsonAdapter.psd1).ModuleVersion
+        $packageVersion = (Import-PowerShellDataFile $(Build.SourcesDirectory)/JsonAdapterPredictor/src/Microsoft.PowerShell.PSAdapter.psd1).ModuleVersion
         $vstsCommandString = "vso[task.setvariable variable=PackageVersion]$packageVersion"
         Write-Host ("sending " + $vstsCommandString)
         Write-Host "##$vstsCommandString"
@@ -111,9 +111,9 @@ stages:
 
     - template: Sbom.yml@ComplianceRepo
       parameters:
-        BuildDropPath: $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.JsonAdapter/$(PackageVersion)
+        BuildDropPath: $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.PSAdapter/$(PackageVersion)
         Build_Repository_Uri: 'https://github.com/powershell/textutility'
-        PackageName: 'Microsoft.PowerShell.JsonAdapterPredictor'
+        PackageName: 'Microsoft.PowerShell.PSAdapterPredictor'
         PackageVersion: $(PackageVersion)
 
     - pwsh: |
@@ -126,7 +126,7 @@ stages:
 
     - pwsh: |
         New-Item -Path $(Build.SourcesDirectory)/JsonAdapterPredictor/SignedZip -ItemType Directory -ErrorAction Ignore
-        Compress-Archive -Path $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.JsonAdapter -DestinationPath $(Build.SourcesDirectory)/JsonAdapterPredictor/SignedZip/Microsoft.PowerShell.JsonAdapter.zip -Force
+        Compress-Archive -Path $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.PSAdapter -DestinationPath $(Build.SourcesDirectory)/JsonAdapterPredictor/SignedZip/Microsoft.PowerShell.PSAdapter.zip -Force
       displayName: 'Compress archive'
       condition: succeededOrFailed()
 
@@ -137,7 +137,7 @@ stages:
 
     - task: PublishPipelineArtifact@1
       inputs:
-        targetpath: $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.JsonAdapter
+        targetpath: $(Build.SourcesDirectory)/JsonAdapterPredictor/signed/Microsoft.PowerShell.PSAdapter
         artifactName: Signed
 
     - task: PublishPipelineArtifact@1

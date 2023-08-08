@@ -13,7 +13,7 @@ using System.Management.Automation.Subsystem;
 using System.Management.Automation.Subsystem.Feedback;
 using System.Management.Automation.Subsystem.Prediction;
 
-namespace JsonAdapterProvider
+namespace PSAdapterProvider
 {
     public sealed class Init : IModuleAssemblyInitializer, IModuleAssemblyCleanup
     {
@@ -21,8 +21,8 @@ namespace JsonAdapterProvider
 
         public void OnImport()
         {
-            SubsystemManager.RegisterSubsystem<IFeedbackProvider, JsonAdapterFeedbackPredictor>(JsonAdapterFeedbackPredictor.Singleton);
-            SubsystemManager.RegisterSubsystem<ICommandPredictor, JsonAdapterFeedbackPredictor>(JsonAdapterFeedbackPredictor.Singleton);
+            SubsystemManager.RegisterSubsystem<IFeedbackProvider, PSAdapterFeedbackPredictor>(PSAdapterFeedbackPredictor.Singleton);
+            SubsystemManager.RegisterSubsystem<ICommandPredictor, PSAdapterFeedbackPredictor>(PSAdapterFeedbackPredictor.Singleton);
         }
 
         public void OnRemove(PSModuleInfo psModuleInfo)
@@ -32,7 +32,7 @@ namespace JsonAdapterProvider
         }
     }
 
-    public sealed class JsonAdapterFeedbackPredictor : IFeedbackProvider, ICommandPredictor
+    public sealed class PSAdapterFeedbackPredictor : IFeedbackProvider, ICommandPredictor
     {
         private readonly Guid _guid;
         private string? _suggestion;
@@ -62,9 +62,9 @@ namespace JsonAdapterProvider
         private int commandLineAccepted = 0;
         private int commandLineExecuted = 0;
 
-        public static JsonAdapterFeedbackPredictor Singleton { get; } = new JsonAdapterFeedbackPredictor(Init.id);
+        public static PSAdapterFeedbackPredictor Singleton { get; } = new PSAdapterFeedbackPredictor(Init.id);
 
-        public JsonAdapterFeedbackPredictor(string? guid = null)
+        public PSAdapterFeedbackPredictor(string? guid = null)
         {
             if (guid is null) {
                 _guid = Guid.NewGuid();
@@ -82,7 +82,7 @@ namespace JsonAdapterProvider
 
         public Guid Id => _guid;
 
-        public string Name => "JsonAdapter";
+        public string Name => "PSAdapter";
 
         public string Description => "Finds a JSON adapter for a native application.";
 
@@ -135,7 +135,7 @@ namespace JsonAdapterProvider
                     return null;
                 }
                 
-                return new FeedbackItem("Json adapter found additional ways to run.", filteredSuggestions);
+                return new FeedbackItem("PSAdapter found additional ways to run.", filteredSuggestions);
             }
 
             return null;
