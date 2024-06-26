@@ -37,3 +37,11 @@ kernel_version : Darwin Kernel Version 22.5.0: Thu Jun 8 22:22:22 PDT 2023; root
 
 PS>
 ```
+
+## Code of Conduct
+
+Please see our [Code of Conduct](.github/CODE_OF_CONDUCT.md) before participating in this project.
+
+## Security Policy
+
+For any security issues, please see our [Security Policy](.github/SECURITY.md).
